@@ -1,0 +1,13 @@
+# dsh-about — 安装 overlay
+
+将本文件内容**追加**到你的 profile 组合补丁文件中(推荐),或用 `--patch` 叠加:
+
+- 追加目标:`$DSH_HOME/profiles/web/cordis.patch.yml`(无此文件则整体复制为它)
+- 或者临时叠加:`dsh --profile web --patch ./dsh-about/cordis.patch.yml`
+
+本 overlay 把 `dsh-about` 包挂进宿主组合;其浏览器半区由
+`dsh.client` 声明自动进入 `window.__DSH_BOOT__` 模块表。
+
+- insert:
+    - id: dsh-about
+      name: 'dsh-about'

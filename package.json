@@ -1,0 +1,42 @@
+{
+  "name": "dsh-about",
+  "version": "1.0.0",
+  "description": "为 DeepSeek Harness Web 设置面板添加“关于”页，展示当前运行的 DSH 版本、插件版本与项目主页。",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "web",
+    "about",
+    "settings"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [],
+      "immediately": false
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "react": "^18.2.0"
+  }
+}
