@@ -1,13 +1,17 @@
-# dsh-about — 安装 overlay
-
-将本文件内容**追加**到你的 profile 组合补丁文件中(推荐),或用 `--patch` 叠加:
-
-- 追加目标:`$DSH_HOME/profiles/web/cordis.patch.yml`(无此文件则整体复制为它)
-- 或者临时叠加:`dsh --profile web --patch ./dsh-about/cordis.patch.yml`
-
-本 overlay 把 `dsh-about` 包挂进宿主组合;其浏览器半区由
-`dsh.client` 声明自动进入 `window.__DSH_BOOT__` 模块表。
-
+# dsh-about bundle patch
+#
+# 本文件是 `dsh.bundle.patch` 声明的组合层:通过官方 CLI 安装 —
+#
+#   dsh plugin --profile <name> add dsh-about
+#   # 或未发布 npm 时: dsh plugin --profile <name> add 'github:<owner>/dsh-about'
+#
+# — 命令会核对 `dsh.profile.bundles` 与已安装包,看到本声明后自动把
+# `dsh-about` 追加进 bundle 堆栈。profile 启动时本 patch 被合并(执行下方
+# 的单个 `insert`),与手动在 profile 的 cordis.patch.yml 里写挂载行的效果
+# 完全一致,且无需手工编辑任何 profile 文件。
+#
+# 若此前已在 profile 自己的 cordis.patch.yml 中手动挂载过本插件,请先删除
+# 旧行再切换到 bundle 通道,避免同一 Host 端点被挂载两次。
 - insert:
     - id: dsh-about
       name: 'dsh-about'

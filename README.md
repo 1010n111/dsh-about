@@ -35,37 +35,25 @@ JSON { ok, version, product, homepage, plugin }
 
 > 前置:DSH Web profile(`dsh web` / `--profile web`),dsh ≥ 0.1.1-rc.x
 
-### 1. 把本包安装进 profile
+### 1. 一条命令安装 + 挂载
 
-在本仓库目录(或使用你 fork 的仓库地址):
+包内声明了 `dsh.bundle.patch`,CLI 会把它自动追加进 profile 的 bundle 堆栈,一次命令即可完成安装与挂载,**无需手工编辑任何 profile 文件**:
 
 ```bash
 # 已发布到 npm 时:
 dsh plugin --profile web add dsh-about
 
 # 或直接从 GitHub 安装(未发布 npm 时):
-dsh plugin --profile web add 'github:<你的用户名>/dsh-about'
+dsh plugin --profile web add 'github:1010n111/dsh-about'
 ```
 
-该命令等价于在 `$DSH_HOME/profiles/web` 目录下执行 `pnpm add`。
+该命令等价于在 `$DSH_HOME/profiles/web` 目录执行 `pnpm add`,并同步
+`dsh.profile.bundles`。
 
-### 2. 挂载到组合
+> 旧方法(手动挂载)不再需要:`dsh plugin add` 之后,请确认
+> `$DSH_HOME/profiles/web/cordis.patch.yml` 中没有遗留的 dsh-about 挂载行。
 
-编辑 `$DSH_HOME/profiles/web/cordis.patch.yml`,在文件末尾追加:
-
-```yaml
-- insert:
-    - id: dsh-about
-      name: 'dsh-about'
-```
-
-也可以直接使用仓库内现成的 overlay:
-
-```bash
-dsh --profile web --patch ./dsh-about/cordis.patch.yml
-```
-
-### 3. 重启并查看
+### 2. 重启并查看
 
 重启 `dsh web`,打开设置弹窗 → 左侧导航末尾的 **“关于”**,即可看到版本信息。
 
@@ -75,7 +63,8 @@ dsh --profile web --patch ./dsh-about/cordis.patch.yml
 dsh plugin --profile web remove dsh-about
 ```
 
-并删除 `cordis.patch.yml` 中的 `dsh-about` 行。
+CLI 会同步从 `dsh.profile.bundles` 移除该包;重启后即完全卸载。若之前在
+profile 自己的 `cordis.patch.yml` 里手动挂载过,请一并删除旧行。
 
 ## 目录结构
 
