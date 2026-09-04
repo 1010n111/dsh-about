@@ -108,16 +108,15 @@ return {
         const releases = list
           .filter((r) => r && !r.draft && typeof r.tag_name === 'string')
           .map((r) => {
-            // 双语正文按英文锚点 id="en- 拆段(client 按界面语言选用),从锚点所在 h3 标签起点整段截取
+            // 双语正文以首个整行 --- 为界拆 zh/en(client 按界面语言选用);英文前言在锚点前,不能用锚点切
             const text = String(r.body || '')
-            const index = text.toLowerCase().indexOf('id="en-')
+            const sep = text.match(/\r?\n---\r?\n/)
             let parts
-            if (index < 0) {
+            if (!sep) {
               parts = { zh: text, en: text }
             } else {
-              const h3 = text.lastIndexOf('<h3', index)
-              const enStart = h3 >= 0 && index - h3 < 40 ? h3 : index
-              parts = { zh: text.slice(0, enStart), en: text.slice(enStart) }
+              const sepEnd = sep.index + sep[0].length
+              parts = { zh: text.slice(0, sep.index), en: text.slice(sepEnd) }
             }
             return {
               tag: r.tag_name,
@@ -266,12 +265,14 @@ return {
     // 清理裸 markdown:双语导航行、链接、粗体星号、分隔线、列表符,保留纯文本要点。
     const cleanMarkdown = (text) =>
       String(text || '')
+        .replace(/\r\n/g, '\n')
         .replace(/\[[^\]]*\]\([^)]*\)/g, '')
         .replace(/^#{1,6}\s*/gm, '')
         .replace(/\*\*?([^*]*)\*\*?/g, '$1')
         .replace(/^---+$/gm, '')
         .replace(/^\s*[-*]\s+/gm, '')
         .replace(/^\s{0,3}\d+\.\s+/gm, '')
+        .replace(/^[ \t]*\|?[ \t]*$/gm, '')
         .replace(/[ \t]+\n/g, '\n')
         .replace(/\n{3,}/g, '\n\n')
         .trim()

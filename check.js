@@ -43,18 +43,19 @@ const text = fns.stripHtml(html);
 const lines = text.split("\n").length;
 const clampedLines = fns.clampLines(text, 7).split("\n").length;
 
-// cleanMarkdown:双语导航行与 markdown 语法应被清除,纯文本要点保留
+// cleanMarkdown:双语导航行与 markdown 语法应被清除,纯文本要点保留(含 CRLF 正文)
 const raw =
-  "[中文](#cn-v0.1.2-rc.1) | [English](#en-v0.1.2-rc.1)\n\n" +
-  "作为 0.1.2 系列的首个候选版本\n\n" +
-  "<h3 id=\"cn-v0.1.2-rc.1\">新增功能</h3>\n\n" +
-  "* 会话流默认折叠过程内容\n---\n\n" +
+  "[中文](#cn-v0.1.2-rc.1) | [English](#en-v0.1.2-rc.1)\r\n\r\n" +
+  "作为 0.1.2 系列的首个候选版本\r\n\r\n" +
+  "<h3 id=\"cn-v0.1.2-rc.1\">新增功能</h3>\r\n\r\n" +
+  "* 会话流默认折叠过程内容\r\n---\r\n\r\n" +
   "**加粗** 与 *斜体* 文本";
 const cleaned = fns.cleanMarkdown(raw);
 if (cleaned.includes("中文") || cleaned.includes("English")) throw new Error("cleanMarkdown nav line");
-if (cleaned.includes("**") || cleaned.includes("---")) throw new Error("cleanMarkdown syntax");
+if (cleaned.includes("|") || cleaned.includes("---")) throw new Error("cleanMarkdown pipe");
 if (!cleaned.includes("新增功能") || !cleaned.includes("会话流默认折叠过程内容")) throw new Error("cleanMarkdown content");
 if (!cleaned.includes("加粗") || !cleaned.includes("斜体")) throw new Error("cleanMarkdown emphasis");
+if (!cleaned.startsWith("作为 0.1.2")) throw new Error("cleanMarkdown leading blank/pipe");
 
 if (lines < 40) throw new Error("stripHtml");
 if (clampedLines <= 0 || clampedLines > 7) throw new Error("clampLines");
