@@ -3,7 +3,7 @@
  *
  * 功能:
  *  - 在 Web 设置弹窗左侧导航添加 "关于" 菜单项(设置页 `settings.section` 槽),order=9999 固定末尾
- *  - "关于" 页(全中文):展示当前运行的 DSH 版本、插件自身版本、项目主页、版本来源
+ *  - "关于" 页(中英双语,跟随 DSH 设置面板语言;导航标签同步翻译)
  *  - 版本来源:Host 通过 `clientModules.clientPath()` 反推 dsh 安装根目录(遍历所有 node_modules 层候选),
  *    读取 `@deepseek-ai/dsh/package.json` 的 version 字段(与 `dsh --version` 一致)
  *  - 失败时页面显示具体错误文本,便于诊断
@@ -75,7 +75,7 @@ return {
       try {
         const version = await readVersion()
         if (version === undefined) {
-          return { ok: false, error: '无法解析正在运行的 dsh 版本' }
+          return { ok: false, error: 'unable to resolve dsh version' }
         }
         return {
           ok: true,
@@ -99,6 +99,61 @@ return {
     const slots = ctx.get('slots')
     if (slots === undefined) return
 
+    // ---- 英文适配:官方 dsh-client-locale 机制(zh/en 字典 + 槽位 locale),缺失时按浏览器语言兜底 ----
+    const NS = 'about'
+    const DICT = {
+      zh: {
+        'nav.label': '关于',
+        'brand.sub': '本地运行的 DeepSeek Harness 控制台',
+        'version.title': '版本',
+        'version.desc': '当前运行的 DeepSeek Harness (dsh) 版本',
+        'error.read': '无法读取版本信息',
+        'error.unknown': '未知错误',
+        'error.resolve': '无法解析正在运行的 dsh 版本',
+        'plugin.title': '插件版本',
+        'plugin.desc': '设置页由动态 Cordis 插件 (dsh-about) 提供',
+        'repo.title': '项目主页',
+        'repo.desc': '开源代码与更新发布',
+        'source.title': '版本来源',
+        'source.desc': '版本信息读取自 dsh 安装目录的 package.json'
+      },
+      en: {
+        'nav.label': 'About',
+        'brand.sub': 'The locally running DeepSeek Harness console',
+        'version.title': 'Version',
+        'version.desc': 'Version of DeepSeek Harness (dsh) currently running',
+        'error.read': 'Unable to read version information',
+        'error.unknown': 'Unknown error',
+        'error.resolve': 'Unable to resolve the running dsh version',
+        'plugin.title': 'Plugin version',
+        'plugin.desc': 'Settings page provided by the dynamic Cordis plugin (dsh-about)',
+        'repo.title': 'Project homepage',
+        'repo.desc': 'Open-source code and release updates',
+        'source.title': 'Version source',
+        'source.desc': 'Version read from the dsh package.json in the installation directory'
+      }
+    }
+    const RESOLVE_ERROR_CODE = 'unable to resolve dsh version' // 与 host 半区错误码保持一致
+    const browserPrefersEnglish = () => {
+      if (typeof document !== 'undefined') {
+        const lang = document.documentElement && document.documentElement.lang
+        if (lang) return lang.toLowerCase().indexOf('en') === 0
+      }
+      if (typeof navigator !== 'undefined' && navigator.language) {
+        return navigator.language.toLowerCase().indexOf('en') === 0
+      }
+      return false
+    }
+    let T = (key) => {
+      const dict = browserPrefersEnglish() ? DICT.en : DICT.zh
+      return dict[key] !== undefined ? dict[key] : key
+    }
+    const localeService = ctx.get('locale')
+    if (localeService !== undefined) {
+      T = localeService.bind(NS)
+      ctx.effect(() => localeService.register(NS, DICT), 'dsh-about: dictionaries')
+    }
+
     styles.insert(
       '.dsh-about-root{box-sizing:border-box;flex-direction:column;width:100%;padding:4px 0 0;display:flex}' +
       '.dsh-about-brand{box-sizing:border-box;align-items:center;gap:12px;padding:14px 0 6px;display:flex}' +
@@ -119,7 +174,8 @@ return {
       '.dsh-about-open{flex:none}'
     )
 
-    const AboutSection = () => {
+    const AboutSection = (props) => {
+      const t = (props && typeof props.t === 'function') ? props.t : T
       const [state, setState] = React.useState({ phase: 'loading' })
 
       React.useEffect(() => {
@@ -128,7 +184,7 @@ return {
           .then((data) => {
             if (cancelled) return
             if (!data || data.ok === false) {
-              setState({ phase: 'error', error: (data && data.error) || '未知错误' })
+              setState({ phase: 'error', error: (data && data.error) || t('error.unknown') })
               return
             }
             setState({ phase: 'ready', version: data.version, product: data.product || '', homepage: data.homepage || '', plugin: data.plugin || null })
@@ -159,39 +215,40 @@ return {
         React.createElement('div', { className: 'dsh-about-logo' }, 'DSH'),
         React.createElement('div', { className: 'dsh-about-brandText' },
           React.createElement('div', { className: 'dsh-about-name' }, 'DeepSeek Harness'),
-          React.createElement('div', { className: 'dsh-about-sub' }, '本地运行的 DeepSeek Harness 控制台')
+          React.createElement('div', { className: 'dsh-about-sub' }, t('brand.sub'))
         )
       )
 
       const versionDesc = failed
-        ? React.createElement('div', { className: 'dsh-about-desc dsh-about-error' }, state.error || '无法读取版本信息')
-        : '当前运行的 DeepSeek Harness (dsh) 版本'
-      const versionRow = row('版本', versionDesc, pendingValue(versionText))
+        ? React.createElement('div', { className: 'dsh-about-desc dsh-about-error' }, state.error === RESOLVE_ERROR_CODE ? t('error.resolve') : state.error || t('error.read'))
+        : t('version.desc')
+      const versionRow = row(t('version.title'), versionDesc, pendingValue(versionText))
 
       const pluginText = state.plugin ? state.plugin.name + ' · v' + state.plugin.version : ''
-      const pluginRow = row('插件版本', '设置页由动态 Cordis 插件 (dsh-about) 提供', pendingValue(failed ? '—' : (pending ? '…' : pluginText)))
+      const pluginRow = row(t('plugin.title'), t('plugin.desc'), pendingValue(failed ? '—' : (pending ? '…' : pluginText)))
 
       const openIcon = React.createElement('svg', { className: 'dsh-about-open', width: 12, height: 12, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
         React.createElement('path', { d: 'M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),
         React.createElement('path', { d: 'M9 2h5v5', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }),
         React.createElement('path', { d: 'M14 2 7.5 8.5', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' })
       )
-      const repoRow = row('项目主页', '开源代码与更新发布',
+      const repoRow = row(t('repo.title'), t('repo.desc'),
         state.homepage
           ? React.createElement('a', { className: 'dsh-about-link', href: state.homepage, target: '_blank', rel: 'noreferrer' },
               state.homepage.replace(/^https?:\\/\\//, ''), openIcon)
           : pendingValue(failed ? '—' : '…')
       )
 
-      const sourceRow = row('版本来源', '版本信息读取自 dsh 安装目录的 package.json', pendingValue(failed ? '—' : (pending ? '…' : '@deepseek-ai/dsh')))
+      const sourceRow = row(t('source.title'), t('source.desc'), pendingValue(failed ? '—' : (pending ? '…' : '@deepseek-ai/dsh')))
 
       return React.createElement('div', { className: 'dsh-about-root' }, brand, versionRow, pluginRow, repoRow, sourceRow)
     }
 
-    slots.inject('settings.section', () => slots.register(
-      { name: 'settings.section', id: 'about', order: 9999, label: () => '关于' },
-      () => React.createElement(AboutSection, null)
-    ))
+    slots.inject('settings.section', () => {
+      const spec = { name: 'settings.section', id: 'about', order: 9999, label: () => T('nav.label') }
+      if (ctx.get('locale') !== undefined) spec.locale = NS
+      return slots.register(spec, () => React.createElement(AboutSection, null))
+    })
   },
 }
 `
