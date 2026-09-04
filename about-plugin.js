@@ -325,7 +325,7 @@ return {
       } else {
         const items = state.releases
           .filter((r) => r && r.tag)
-          .slice(0, 8)
+          .slice(0, 5)
           .map((r) => {
             const tag = r.tag.replace(/^dsh-/, '')
             const isCurrent = tag === currentVersion
