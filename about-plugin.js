@@ -89,6 +89,37 @@ return {
         return { ok: false, error: String((error && error.message) || error) }
       }
     })
+
+    // 更新日志:host 半区代理 GitHub Releases(浏览器直连 GitHub 不稳/跨域)
+    let releasesCache = { at: 0, payload: null }
+    const CACHE_TTL_MS = 5 * 60 * 1000
+    harness.handle('about/releases', async () => {
+      const now = Date.now()
+      if (releasesCache.payload && now - releasesCache.at < CACHE_TTL_MS) {
+        return releasesCache.payload
+      }
+      try {
+        const res = await fetch('https://api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=20', {
+          headers: { accept: 'application/vnd.github+json', 'user-agent': 'dsh-about' },
+        })
+        if (!res.ok) throw new Error('github http ' + res.status)
+        const list = await res.json()
+        if (!Array.isArray(list)) throw new Error('bad github payload')
+        const releases = list
+          .filter((r) => r && !r.draft && typeof r.tag_name === 'string')
+          .map((r) => ({
+            tag: r.tag_name,
+            name: String(r.name || r.tag_name),
+            date: String(r.published_at || '').slice(0, 10),
+            url: String(r.html_url || ''),
+            body: String(r.body || ''),
+          }))
+        releasesCache = { at: now, payload: { ok: true, releases } }
+        return releasesCache.payload
+      } catch (error) {
+        return { ok: false, error: String((error && error.message) || error) }
+      }
+    })
   },
 }
 `
@@ -197,16 +228,8 @@ return {
       '.dsh-about-cl-badge.current{background:var(--dsw-alias-brand-primary);color:#fff}'
     )
 
-    // ---- 更新日志:拉取 GitHub Releases,当前版本置顶高亮,可展开/收起 ----
-    const fetchReleases = () =>
-      fetch('https://api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=20', { headers: { accept: 'application/vnd.github+json' } })
-        .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json() })
-
-    const dateOnly = (iso) => {
-      if (!iso) return ''
-      const date = new Date(iso)
-      return isNaN(date.getTime()) ? String(iso) : date.toISOString().slice(0, 10)
-    }
+    // ---- 更新日志:host 半区代理 GitHub Releases,当前版本置顶高亮,可展开/收起 ----
+    const fetchReleases = () => host.call('about/releases')
 
     const stripHtml = (html) => {
       const div = document.createElement('div')
@@ -235,10 +258,11 @@ return {
       React.useEffect(() => {
         let cancelled = false
         fetchReleases()
-          .then((releases) => {
+          .then((data) => {
             if (cancelled) return
-            if (!Array.isArray(releases)) throw new Error('bad response')
-            setState({ phase: 'ready', releases, expanded: {} })
+            if (!data || data.ok === false) throw new Error((data && data.error) || 'bad response')
+            if (!Array.isArray(data.releases)) throw new Error('bad response')
+            setState({ phase: 'ready', releases: data.releases, expanded: {} })
           })
           .catch((err) => {
             if (!cancelled) setState({ phase: 'error', error: String((err && err.message) || err) })
@@ -261,23 +285,23 @@ return {
         block = React.createElement('div', { className: 'dsh-about-desc dsh-about-error' }, t('changelog.error'))
       } else {
         const items = state.releases
-          .filter((r) => r && !r.draft && r.tag_name)
+          .filter((r) => r && r.tag)
           .slice(0, 8)
           .map((r) => {
-            const tag = r.tag_name.replace(/^dsh-/, '')
+            const tag = r.tag.replace(/^dsh-/, '')
             const isCurrent = tag === currentVersion
-            const expanded = !!((state.expanded || {})[r.tag_name])
+            const expanded = !!((state.expanded || {})[r.tag])
             const body = stripHtml(r.body || '')
             const text = expanded ? body : clampLines(body, 7)
             const bodyNode = text
               ? React.createElement('div', { className: 'dsh-about-cl-body' }, text)
               : null
-            return React.createElement('div', { key: r.tag_name, className: 'dsh-about-cl-item' },
+            return React.createElement('div', { key: r.tag, className: 'dsh-about-cl-item' },
               React.createElement('button', {
                 type: 'button', className: 'dsh-about-cl-head',
-                onClick: () => toggle(r.tag_name)
+                onClick: () => toggle(r.tag)
               },
-                React.createElement('div', { className: 'dsh-about-title' }, tag + ' · ' + dateOnly(r.published_at)),
+                React.createElement('div', { className: 'dsh-about-title' }, tag + ' · ' + r.date),
                 React.createElement('span', { className: 'dsh-about-cl-badge' + (isCurrent ? ' current' : '') },
                   isCurrent ? t('changelog.current') : (expanded ? t('changelog.collapse') : t('changelog.expand'))
                 )

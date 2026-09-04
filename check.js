@@ -1,4 +1,4 @@
-// 自检:验证 lib/client.js 更新日志辅助函数(纯函数,无框架)。
+// 自检:验证 dsh-about 更新日志实现的纯函数(无框架)。
 import fs from "node:fs";
 
 const src = fs.readFileSync(new URL("./lib/client.js", import.meta.url), "utf8");
@@ -32,7 +32,7 @@ function sliceFn(name) {
 globalThis.document = documentShim;
 
 const fns = {};
-for (const name of ["dateOnly", "stripHtml", "clampLines"]) {
+for (const name of ["stripHtml", "clampLines"]) {
   fns[name] = new Function("return " + sliceFn(name) + ";")();
 }
 
@@ -43,10 +43,9 @@ const text = fns.stripHtml(html);
 const lines = text.split("\n").length;
 const clampedLines = fns.clampLines(text, 7).split("\n").length;
 
-if (fns.dateOnly("2026-09-03T06:06:07Z") !== "2026-09-03") throw new Error("dateOnly");
 if (lines < 40) throw new Error("stripHtml");
 if (clampedLines <= 0 || clampedLines > 7) throw new Error("clampLines");
 if (!fns.clampLines(text, 7).endsWith("…")) throw new Error("clampLines ellipsis");
 if (fns.clampLines("a\nb", 7) !== "a\nb") throw new Error("clampLines short");
 
-console.log("check OK:", { date: fns.dateOnly("2026-09-03T06:06:07Z"), textLines: lines, clamped: clampedLines });
+console.log("check OK:", { textLines: lines, clamped: clampedLines });
