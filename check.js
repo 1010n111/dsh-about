@@ -32,7 +32,7 @@ function sliceFn(name) {
 globalThis.document = documentShim;
 
 const fns = {};
-for (const name of ["stripHtml", "clampLines"]) {
+for (const name of ["stripHtml", "cleanMarkdown", "clampLines"]) {
   fns[name] = new Function("return " + sliceFn(name) + ";")();
 }
 
@@ -43,9 +43,22 @@ const text = fns.stripHtml(html);
 const lines = text.split("\n").length;
 const clampedLines = fns.clampLines(text, 7).split("\n").length;
 
+// cleanMarkdown:双语导航行与 markdown 语法应被清除,纯文本要点保留
+const raw =
+  "[中文](#cn-v0.1.2-rc.1) | [English](#en-v0.1.2-rc.1)\n\n" +
+  "作为 0.1.2 系列的首个候选版本\n\n" +
+  "<h3 id=\"cn-v0.1.2-rc.1\">新增功能</h3>\n\n" +
+  "* 会话流默认折叠过程内容\n---\n\n" +
+  "**加粗** 与 *斜体* 文本";
+const cleaned = fns.cleanMarkdown(raw);
+if (cleaned.includes("中文") || cleaned.includes("English")) throw new Error("cleanMarkdown nav line");
+if (cleaned.includes("**") || cleaned.includes("---")) throw new Error("cleanMarkdown syntax");
+if (!cleaned.includes("新增功能") || !cleaned.includes("会话流默认折叠过程内容")) throw new Error("cleanMarkdown content");
+if (!cleaned.includes("加粗") || !cleaned.includes("斜体")) throw new Error("cleanMarkdown emphasis");
+
 if (lines < 40) throw new Error("stripHtml");
 if (clampedLines <= 0 || clampedLines > 7) throw new Error("clampLines");
 if (!fns.clampLines(text, 7).endsWith("…")) throw new Error("clampLines ellipsis");
 if (fns.clampLines("a\nb", 7) !== "a\nb") throw new Error("clampLines short");
 
-console.log("check OK:", { textLines: lines, clamped: clampedLines });
+console.log("check OK:", { textLines: lines, clamped: clampedLines, cleanedLines: cleaned.split("\n").length });

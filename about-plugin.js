@@ -107,13 +107,27 @@ return {
         if (!Array.isArray(list)) throw new Error('bad github payload')
         const releases = list
           .filter((r) => r && !r.draft && typeof r.tag_name === 'string')
-          .map((r) => ({
-            tag: r.tag_name,
-            name: String(r.name || r.tag_name),
-            date: String(r.published_at || '').slice(0, 10),
-            url: String(r.html_url || ''),
-            body: String(r.body || ''),
-          }))
+          .map((r) => {
+            // 双语正文按英文锚点 id="en- 拆段(client 按界面语言选用),从锚点所在 h3 标签起点整段截取
+            const text = String(r.body || '')
+            const index = text.toLowerCase().indexOf('id="en-')
+            let parts
+            if (index < 0) {
+              parts = { zh: text, en: text }
+            } else {
+              const h3 = text.lastIndexOf('<h3', index)
+              const enStart = h3 >= 0 && index - h3 < 40 ? h3 : index
+              parts = { zh: text.slice(0, enStart), en: text.slice(enStart) }
+            }
+            return {
+              tag: r.tag_name,
+              name: String(r.name || r.tag_name),
+              date: String(r.published_at || '').slice(0, 10),
+              url: String(r.html_url || ''),
+              bodyZh: parts.zh,
+              bodyEn: parts.en,
+            }
+          })
         releasesCache = { at: now, payload: { ok: true, releases } }
         return releasesCache.payload
       } catch (error) {
@@ -201,6 +215,18 @@ return {
       T = localeService.bind(NS)
       ctx.effect(() => localeService.register(NS, DICT), 'dsh-about: dictionaries')
     }
+    // 当前界面语言 id(zh/en):优先 locale 服务,缺失时按浏览器语言兜底。
+    const currentLang = () => {
+      if (localeService !== undefined) {
+        try {
+          const snap = localeService.getLocale()
+          if (snap && typeof snap.active === 'string') return snap.active
+        } catch (_) {
+          // fall through to browser detection
+        }
+      }
+      return browserPrefersEnglish() ? 'en' : 'zh'
+    }
 
     styles.insert(
       '.dsh-about-root{box-sizing:border-box;flex-direction:column;width:100%;padding:4px 0 0;display:flex}' +
@@ -236,6 +262,19 @@ return {
       div.innerHTML = html || ''
       return div.textContent || ''
     }
+
+    // 清理裸 markdown:双语导航行、链接、粗体星号、分隔线、列表符,保留纯文本要点。
+    const cleanMarkdown = (text) =>
+      String(text || '')
+        .replace(/\[[^\]]*\]\([^)]*\)/g, '')
+        .replace(/^#{1,6}\s*/gm, '')
+        .replace(/\*\*?([^*]*)\*\*?/g, '$1')
+        .replace(/^---+$/gm, '')
+        .replace(/^\s*[-*]\s+/gm, '')
+        .replace(/^\s{0,3}\d+\.\s+/gm, '')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
 
     const clampLines = (text, maxLines) => {
       const lines = text.split('\n')
@@ -291,7 +330,7 @@ return {
             const tag = r.tag.replace(/^dsh-/, '')
             const isCurrent = tag === currentVersion
             const expanded = !!((state.expanded || {})[r.tag])
-            const body = stripHtml(r.body || '')
+            const body = cleanMarkdown(stripHtml(currentLang().indexOf('en') === 0 ? (r.bodyEn || r.bodyZh || '') : (r.bodyZh || r.bodyEn || '')))
             const text = expanded ? body : clampLines(body, 7)
             const bodyNode = text
               ? React.createElement('div', { className: 'dsh-about-cl-body' }, text)
