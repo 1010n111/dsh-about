@@ -1,5 +1,5 @@
 /**
- * dsh-about 动态插件 — 源码存档 (当前运行包: about-1/pkg-6)
+ * dsh-about 动态插件 — 源码存档 (当前运行包: about-1/pkg-7)
  *
  * 功能:
  *  - 在 Web 设置弹窗左侧导航添加 "关于" 菜单项(设置页 `settings.section` 槽),order=9999 固定末尾
@@ -16,6 +16,7 @@
  *  - pkg-4 新增"插件版本"行(声明式版本 1.0.0)
  *  - pkg-5 插件版本行描述 about-1 → dsh-about
  *  - pkg-6 菜单 order 30 → 9999,确保"关于"始终为导航最后一项
+ *  - pkg-7 新增"更新日志"块:拉取 deepseek-harness 的 GitHub Releases,当前版本置顶高亮,单条可展开/收起
  *
  * 注意:动态插件定义随 DSH 进程存活,进程重启后需用本文件源码重新 cordis_define + cordis_run。
  */
@@ -69,7 +70,7 @@ return {
     }
 
     // 插件自身的声明式版本(动态插件无 package.json,随插件代码维护)
-    const PLUGIN = { name: 'dsh-about', version: '1.0.0' }
+    const PLUGIN = { name: 'dsh-about', version: '1.0.0', repo: 'https://github.com/1010n111/dsh-about' }
 
     harness.handle('about/version', async () => {
       try {
@@ -115,7 +116,15 @@ return {
         'repo.title': '项目主页',
         'repo.desc': '开源代码与更新发布',
         'source.title': '版本来源',
-        'source.desc': '版本信息读取自 dsh 安装目录的 package.json'
+        'source.desc': '版本信息读取自 dsh 安装目录的 package.json',
+        'changelog.title': '更新日志',
+        'changelog.desc': '来自 deepseek-harness 的版本更新 (GitHub Releases)',
+        'changelog.current': '当前版本',
+        'changelog.expand': '展开',
+        'changelog.collapse': '收起',
+        'changelog.open': '完整日志',
+        'changelog.error': '无法获取更新日志,请在 GitHub 查看',
+        'changelog.empty': '暂无更新日志'
       },
       en: {
         'nav.label': 'About',
@@ -130,7 +139,15 @@ return {
         'repo.title': 'Project homepage',
         'repo.desc': 'Open-source code and release updates',
         'source.title': 'Version source',
-        'source.desc': 'Version read from the dsh package.json in the installation directory'
+        'source.desc': 'Version read from the dsh package.json in the installation directory',
+        'changelog.title': 'Changelog',
+        'changelog.desc': 'Version updates from deepseek-harness (GitHub Releases)',
+        'changelog.current': 'current',
+        'changelog.expand': 'Expand',
+        'changelog.collapse': 'Collapse',
+        'changelog.open': 'Full changelog',
+        'changelog.error': 'Could not fetch the changelog, see GitHub',
+        'changelog.empty': 'No changelog available'
       }
     }
     const RESOLVE_ERROR_CODE = 'unable to resolve dsh version' // 与 host 半区错误码保持一致
@@ -171,8 +188,124 @@ return {
       '.dsh-about-error{color:var(--dsw-alias-state-error-primary)}' +
       '.dsh-about-link{color:var(--dsw-alias-brand-primary);font-size:14px;line-height:22px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;max-width:68%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
       '.dsh-about-link:hover{text-decoration:underline}' +
-      '.dsh-about-open{flex:none}'
+      '.dsh-about-open{flex:none}' +
+      '.dsh-about-cl-item{border:1px solid var(--dsw-alias-border-l2);border-radius:10px;margin:8px 0;overflow:hidden}' +
+      '.dsh-about-cl-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;cursor:pointer;background:none;border:none;width:100%;text-align:left;font:inherit;color:inherit}' +
+      '.dsh-about-cl-head:hover{background:var(--dsw-alias-fill-hover,rgba(127,127,127,.08))}' +
+      '.dsh-about-cl-body{border-top:1px solid var(--dsw-alias-border-l2);padding:10px 12px;white-space:pre-wrap;word-break:break-word}' +
+      '.dsh-about-cl-badge{flex:none;font-size:11px;line-height:1;padding:3px 7px;border-radius:999px;background:var(--dsw-alias-fill-strong,rgba(127,127,127,.16));color:var(--dsw-alias-label-secondary)}' +
+      '.dsh-about-cl-badge.current{background:var(--dsw-alias-brand-primary);color:#fff}'
     )
+
+    // ---- 更新日志:拉取 GitHub Releases,当前版本置顶高亮,可展开/收起 ----
+    const fetchReleases = () =>
+      fetch('https://api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=20', { headers: { accept: 'application/vnd.github+json' } })
+        .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json() })
+
+    const dateOnly = (iso) => {
+      if (!iso) return ''
+      const date = new Date(iso)
+      return isNaN(date.getTime()) ? String(iso) : date.toISOString().slice(0, 10)
+    }
+
+    const stripHtml = (html) => {
+      const div = document.createElement('div')
+      div.innerHTML = html || ''
+      return div.textContent || ''
+    }
+
+    const clampLines = (text, maxLines) => {
+      const lines = text.split('\n')
+      let total = 0
+      const kept = []
+      for (let i = 0; i < lines.length; i++) {
+        const width = Math.max(1, Math.ceil(lines[i].length / 90))
+        if (total + width > maxLines) break
+        kept.push(lines[i])
+        total += width
+      }
+      return kept.join('\n') + (total >= maxLines && kept.length < lines.length ? '…' : '')
+    }
+
+    const ChangelogSection = (props) => {
+      const t = (props && typeof props.t === 'function') ? props.t : T
+      const currentVersion = (props && props.currentVersion) || ''
+      const [state, setState] = React.useState({ phase: 'loading', expanded: {} })
+
+      React.useEffect(() => {
+        let cancelled = false
+        fetchReleases()
+          .then((releases) => {
+            if (cancelled) return
+            if (!Array.isArray(releases)) throw new Error('bad response')
+            setState({ phase: 'ready', releases, expanded: {} })
+          })
+          .catch((err) => {
+            if (!cancelled) setState({ phase: 'error', error: String((err && err.message) || err) })
+          })
+        return () => { cancelled = true }
+      }, [])
+
+      const toggle = (tag) => {
+        setState((prev) => {
+          const expanded = { ...(prev.expanded || {}) }
+          expanded[tag] = !expanded[tag]
+          return { phase: prev.phase, releases: prev.releases, expanded }
+        })
+      }
+
+      let block
+      if (state.phase === 'loading') {
+        block = React.createElement('div', { className: 'dsh-about-desc' }, '…')
+      } else if (state.phase === 'error') {
+        block = React.createElement('div', { className: 'dsh-about-desc dsh-about-error' }, t('changelog.error'))
+      } else {
+        const items = state.releases
+          .filter((r) => r && !r.draft && r.tag_name)
+          .slice(0, 8)
+          .map((r) => {
+            const tag = r.tag_name.replace(/^dsh-/, '')
+            const isCurrent = tag === currentVersion
+            const expanded = !!((state.expanded || {})[r.tag_name])
+            const body = stripHtml(r.body || '')
+            const text = expanded ? body : clampLines(body, 7)
+            const bodyNode = text
+              ? React.createElement('div', { className: 'dsh-about-cl-body' }, text)
+              : null
+            return React.createElement('div', { key: r.tag_name, className: 'dsh-about-cl-item' },
+              React.createElement('button', {
+                type: 'button', className: 'dsh-about-cl-head',
+                onClick: () => toggle(r.tag_name)
+              },
+                React.createElement('div', { className: 'dsh-about-title' }, tag + ' · ' + dateOnly(r.published_at)),
+                React.createElement('span', { className: 'dsh-about-cl-badge' + (isCurrent ? ' current' : '') },
+                  isCurrent ? t('changelog.current') : (expanded ? t('changelog.collapse') : t('changelog.expand'))
+                )
+              ),
+              bodyNode
+            )
+          })
+        block = items.length
+          ? React.createElement('div', null, items)
+          : React.createElement('div', { className: 'dsh-about-desc' }, t('changelog.empty'))
+      }
+
+      const openLink = state.phase === 'ready'
+        ? React.createElement('a', { className: 'dsh-about-link', href: 'https://github.com/deepseek-ai/deepseek-harness/releases', target: '_blank', rel: 'noreferrer' },
+            t('changelog.open'),
+            React.createElement('svg', { className: 'dsh-about-open', width: 12, height: 12, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+              React.createElement('path', { d: 'M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),
+              React.createElement('path', { d: 'M9 2h5v5', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+              React.createElement('path', { d: 'M14 2 7.5 8.5', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' })
+            )
+          )
+        : null
+
+      return React.createElement('div', null,
+        row(t('changelog.title'), t('changelog.desc'), openLink),
+        block
+      )
+    }
 
     const AboutSection = (props) => {
       const t = (props && typeof props.t === 'function') ? props.t : T
@@ -241,7 +374,9 @@ return {
 
       const sourceRow = row(t('source.title'), t('source.desc'), pendingValue(failed ? '—' : (pending ? '…' : '@deepseek-ai/dsh')))
 
-      return React.createElement('div', { className: 'dsh-about-root' }, brand, versionRow, pluginRow, repoRow, sourceRow)
+      const changelog = React.createElement(ChangelogSection, { t, currentVersion: failed || pending ? '' : state.version })
+
+      return React.createElement('div', { className: 'dsh-about-root' }, brand, versionRow, pluginRow, repoRow, sourceRow, changelog)
     }
 
     slots.inject('settings.section', () => {

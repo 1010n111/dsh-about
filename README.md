@@ -14,6 +14,7 @@
   | 插件仓库 | `github.com/1010n111/dsh-about` 外链 |
   | 项目主页 | deepseek-harness 仓库外链 |
   | 版本来源 | `@deepseek-ai/dsh` |
+  | 更新日志 | 拉取 deepseek-harness 的 **GitHub Releases**(最近 8 条),当前运行版本置顶高亮,单条可展开/收起;失败时给出外链兜底 |
 - 加载中显示 `…`,读取失败显示 `—` 并给出具体错误文本,便于诊断
 - 纯前端 + 一个只读 HTTP 端点,不写任何配置、不改动持久化数据
 
@@ -32,6 +33,8 @@ JSON { ok, version, product, homepage, plugin }
 ```
 
 版本号直接读取运行中安装的 `dsh` 包,因此**不需要硬编码路径**,且与 `dsh --version` 的输出保持一致。
+
+“更新日志”块由浏览器直接请求 `https://api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=20`(无鉴权、只读),按发布时间倒序取最近 8 条;**首次打开时需能访问 GitHub**,失败或离线时显示“无法获取更新日志”并附 Releases 外链兜底。
 
 ## 安装
 
