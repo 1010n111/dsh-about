@@ -1,6 +1,6 @@
 {
   "name": "dsh-about",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "为 DeepSeek Harness Web 设置面板添加“关于”页，展示当前运行的 DSH 版本、插件版本与项目主页。",
   "keywords": [
     "dsh",

@@ -10,7 +10,7 @@
   | 行 | 内容 |
   |---|---|
   | 版本 | 当前运行的 DSH 版本(与 `dsh --version` 一致) |
-  | 插件版本 | `dsh-about · v0.0.4`(与 package.json 同步) |
+  | 插件版本 | `dsh-about · v0.0.5`(与 package.json 同步) |
   | 插件仓库 | `github.com/1010n111/dsh-about` 外链 |
   | 项目主页 | deepseek-harness 仓库外链 |
   | 版本来源 | `@deepseek-ai/dsh` |
