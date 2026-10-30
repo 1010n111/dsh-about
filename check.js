@@ -2,6 +2,12 @@
 import fs from "node:fs";
 
 const src = fs.readFileSync(new URL("./lib/client.js", import.meta.url), "utf8");
+const archive = fs.readFileSync(new URL("./about-plugin.js", import.meta.url), "utf8");
+
+if (!src.includes('name: "settings.section", id: "1010n111:dsh-about"')) throw new Error("settings section id");
+if (src.includes('name: "settings.section", id: "about"')) throw new Error("legacy settings section id");
+if (!archive.includes("name: 'settings.section', id: '1010n111:dsh-about'")) throw new Error("archive settings section id");
+if (archive.includes("name: 'settings.section', id: 'about'")) throw new Error("legacy archive settings section id");
 
 /** stripHtml 仅在浏览器中使用 document;测试时用简单替代(模拟 innerHTML→textContent)。 */
 const documentShim = {
