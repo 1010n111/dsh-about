@@ -444,7 +444,7 @@ return {
     }
 
     slots.inject('settings.section', () => {
-      const spec = { name: 'settings.section', id: '1010n111:dsh-about', order: 9999, label: () => T('nav.label') }
+      const spec = { name: 'settings.section', id: '1010n111:dsh-about', order: Number.POSITIVE_INFINITY, label: () => T('nav.label') }
       if (ctx.get('locale') !== undefined) spec.locale = NS
       return slots.register(spec, () => React.createElement(AboutSection, null))
     })
